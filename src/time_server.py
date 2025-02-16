@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from enum import Enum
@@ -134,108 +135,145 @@ class TimeServer:
         )
 
 
-async def serve(local_timezone: str | None = None) -> None:
-    server = Server("mcp-time")
-    time_server = TimeServer()
-    local_tz = str(get_local_tz(local_timezone))
+logger = logging.getLogger(__name__)
+# Suppress INFO logs for MCP request types
+logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
 
-    @server.list_tools()
-    async def list_tools() -> list[Tool]:
-        await asyncio.sleep(0)
-        """List available time tools."""
-        local_tz_desc = (
-            f"IANA timezone name (e.g., 'America/New_York', 'Europe/London'). "
-            f"Use '{local_tz}' as local timezone if no timezone provided by the user."
-        )
+
+def create_tools(local_tz: str) -> list[Tool]:
+    """Create and return the list of available tools."""
+    local_tz_desc = (
+        "IANA timezone name (e.g., 'America/New_York', 'Europe/London'). "
+        f"Use '{local_tz}' as local timezone if no timezone provided."
+    )
+    return [
+        Tool(
+            name=TimeTools.GET_CURRENT_TIME.value,
+            description="Get current time in a specific timezones",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "timezone": {
+                        "type": "string",
+                        "description": local_tz_desc,
+                    },
+                },
+                "required": ["timezone"],
+            },
+        ),
+        Tool(
+            name=TimeTools.CONVERT_TIME.value,
+            description="Convert time between timezones",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "source_timezone": {
+                        "type": "string",
+                        "description": local_tz_desc,
+                    },
+                    "time": {
+                        "type": "string",
+                        "description": "Time to convert in 24-hour format (HH:MM)",
+                    },
+                    "target_timezone": {
+                        "type": "string",
+                        "description": local_tz_desc,
+                    },
+                },
+                "required": ["source_timezone", "time", "target_timezone"],
+            },
+        ),
+    ]
+
+
+async def handle_tool_call(
+    name: str,
+    arguments: dict[str, str],
+    time_server: TimeServer,
+) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+    """Handle tool calls for time queries."""
+
+    def raise_error(error_msg: str) -> None:
+        raise ValueError(error_msg)
+
+    def raise_missing_arg(arg_name: str) -> None:
+        raise_error(f"Missing required argument: {arg_name}")
+
+    def raise_unknown_tool(tool_name: str) -> None:
+        raise_error(f"Unknown tool: {tool_name}")
+
+    try:
+        match name:
+            case TimeTools.GET_CURRENT_TIME.value:
+                timezone = arguments.get("timezone")
+                if not timezone:
+                    raise_missing_arg("timezone")
+
+                assert isinstance(timezone, str)  # Type narrowing for mypy
+                result = time_server.get_current_time(timezone)
+
+            case TimeTools.CONVERT_TIME.value:
+                required_args = ["source_timezone", "time", "target_timezone"]
+                if not all(k in arguments for k in required_args):
+                    raise_missing_arg(", ".join(required_args))
+
+                result = time_server.convert_time(
+                    arguments["source_timezone"],
+                    arguments["time"],
+                    arguments["target_timezone"],
+                )
+            case _:
+                raise_unknown_tool(name)
+
         return [
-            Tool(
-                name=TimeTools.GET_CURRENT_TIME.value,
-                description="Get current time in a specific timezones",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "timezone": {
-                            "type": "string",
-                            "description": local_tz_desc,
-                        },
-                    },
-                    "required": ["timezone"],
-                },
-            ),
-            Tool(
-                name=TimeTools.CONVERT_TIME.value,
-                description="Convert time between timezones",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "source_timezone": {
-                            "type": "string",
-                            "description": local_tz_desc,
-                        },
-                        "time": {
-                            "type": "string",
-                            "description": "Time to convert in 24-hour format (HH:MM)",
-                        },
-                        "target_timezone": {
-                            "type": "string",
-                            "description": local_tz_desc,
-                        },
-                    },
-                    "required": ["source_timezone", "time", "target_timezone"],
-                },
+            TextContent(
+                type="text",
+                text=json.dumps(result.model_dump(), indent=2),
             ),
         ]
 
-    @server.call_tool()  # noqa: F401
-    async def call_tool(
-        name: str,
-        arguments: dict[str, str],
-    ) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
-        await asyncio.sleep(0)
-        """Handle tool calls for time queries."""
+    except Exception as e:
+        error_msg = f"Error processing mcp-server-time query: {e!s}"
+        raise ValueError(error_msg) from e
 
-        def raise_missing_arg(arg_name: str) -> None:
-            error_msg = f"Missing required argument: {arg_name}"
-            raise ValueError(error_msg)
 
-        def raise_unknown_tool(tool_name: str) -> None:
-            error_msg = f"Unknown tool: {tool_name}"
-            raise ValueError(error_msg)
-
-        try:
-            match name:
-                case TimeTools.GET_CURRENT_TIME.value:
-                    timezone = arguments.get("timezone")
-                    if not timezone:
-                        raise_missing_arg("timezone")
-
-                    assert isinstance(timezone, str)  # Type narrowing for mypy
-                    result = time_server.get_current_time(timezone)
-
-                case TimeTools.CONVERT_TIME.value:
-                    required_args = ["source_timezone", "time", "target_timezone"]
-                    if not all(k in arguments for k in required_args):
-                        raise_missing_arg(", ".join(required_args))
-
-                    result = time_server.convert_time(
-                        arguments["source_timezone"],
-                        arguments["time"],
-                        arguments["target_timezone"],
-                    )
-                case _:
-                    raise_unknown_tool(name)
-
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2),
-                ),
-            ]
-
-        except Exception as e:
-            error_msg = f"Error processing mcp-server-time query: {e!s}"
-            raise ValueError(error_msg) from e
-
+async def run_server(server: Server) -> None:
+    """Run the MCP server with stdio transport."""
     options = server.create_initialization_options()
     async with stdio_server() as (read_stream, write_stream):
+        logger.info("Starting MCP Time Server")
         await server.run(read_stream, write_stream, options)
+        logger.info("MCP Time Server running")
+
+
+async def serve(local_timezone: str | None = None) -> None:
+    try:
+        server = Server("mcp-time")
+        time_server = TimeServer()
+        local_tz = str(get_local_tz(local_timezone))
+
+        @server.list_tools()
+        async def list_tools() -> list[Tool]:
+            await asyncio.sleep(0)
+            return create_tools(local_tz)
+
+        @server.call_tool()
+        async def call_tool(
+            name: str,
+            arguments: dict[str, str],
+        ) -> Sequence[TextContent | ImageContent | EmbeddedResource]:
+            await asyncio.sleep(0)
+            return await handle_tool_call(name, arguments, time_server)
+
+        await run_server(server)
+    except Exception:
+        logger.exception("Error in MCP Time Server")
+        raise
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    try:
+        asyncio.run(serve())
+    except KeyboardInterrupt:
+        logger.info("Shutting down MCP Time Server")
