@@ -13,7 +13,10 @@ An MCP server for timezone conversions and time-related operations, built with t
 - [Usage](#usage)
 - [API Documentation](#api-documentation)
 - [Development](#development)
+<<<<<<< HEAD
 - [Contributing](#contributing)
+=======
+>>>>>>> b832a4c450ef0ab33f398431cf4ed979689426b1
 - [Code of Conduct](#code-of-conduct)
 - [License](#license)
 
@@ -45,6 +48,10 @@ python -m time_server
 
 ### Tools
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b832a4c450ef0ab33f398431cf4ed979689426b1
 #### `get_current_time`
 
 Get current time in a specific timezone
