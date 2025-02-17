@@ -1,5 +1,6 @@
 # Time Server
 
+[![smithery badge](https://smithery.ai/badge/@clssck/mcp-time-server)](https://smithery.ai/server/@clssck/mcp-time-server)
 ![MCP](https://img.shields.io/badge/MCP-Protocol-blue)
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -13,10 +14,7 @@ An MCP server for timezone conversions and time-related operations, built with t
 - [Usage](#usage)
 - [API Documentation](#api-documentation)
 - [Development](#development)
-<<<<<<< HEAD
 - [Contributing](#contributing)
-=======
->>>>>>> b832a4c450ef0ab33f398431cf4ed979689426b1
 - [Code of Conduct](#code-of-conduct)
 - [License](#license)
 
@@ -31,6 +29,16 @@ An MCP server for timezone conversions and time-related operations, built with t
 - Timezone database integration
 
 ## Installation
+
+### Installing via Smithery
+
+To install Time Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@clssck/mcp-time-server):
+
+```bash
+npx -y @smithery/cli install @clssck/mcp-time-server --client claude
+```
+
+### Manual Installation
 
 ```bash
 pip install .
@@ -48,10 +56,6 @@ python -m time_server
 
 ### Tools
 
-<<<<<<< HEAD
-=======
-
->>>>>>> b832a4c450ef0ab33f398431cf4ed979689426b1
 #### `get_current_time`
 
 Get current time in a specific timezone
